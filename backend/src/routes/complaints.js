@@ -50,7 +50,7 @@ router.get('/', getAllComplaints);
 router.put('/:id', validateStatusUpdate, updateComplaintStatus);
 
 // 7. POST /complaints/:id/join - Join existing complaint
-router.post('/:id/join', joinComplaint);
+router.post('/:id/join', authenticateOptional, joinComplaint);
 
 // 7. POST /assign - Assign complaint to department
 // (Note: This is mounted at /api/assign in server.js)
