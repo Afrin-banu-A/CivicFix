@@ -27,52 +27,52 @@ before(async () => {
         });
     });
 
-    // Clean up test data if existing
     const volEmail = `testvol_${Date.now()}@example.com`;
     const vol2Email = `testvol2_${Date.now()}@example.com`;
     const citEmail = `testcit_${Date.now()}@example.com`;
 
-    // Create volunteer 1
+    // Create volunteer 1 account (assigned volunteer role in DB)
     const res1 = await fetch(`${baseUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name: 'Test Volunteer 1',
             email: volEmail,
-            password: 'password123',
-            role: 'volunteer'
+            password: 'password123'
         })
     });
     const data1 = await res1.json();
     assert.strictEqual(res1.status, 201);
     volunteerToken = data1.data.token;
     volunteerUser = data1.data.user;
+    await User.updateRole(volunteerUser.id, 'volunteer');
+    volunteerUser.role = 'volunteer';
 
-    // Create volunteer 2
+    // Create volunteer 2 account (assigned volunteer role in DB)
     const res2 = await fetch(`${baseUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name: 'Test Volunteer 2',
             email: vol2Email,
-            password: 'password123',
-            role: 'volunteer'
+            password: 'password123'
         })
     });
     const data2 = await res2.json();
     assert.strictEqual(res2.status, 201);
     volunteer2Token = data2.data.token;
     volunteer2User = data2.data.user;
+    await User.updateRole(volunteer2User.id, 'volunteer');
+    volunteer2User.role = 'volunteer';
 
-    // Create citizen
+    // Create citizen account
     const res3 = await fetch(`${baseUrl}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             name: 'Test Citizen',
             email: citEmail,
-            password: 'password123',
-            role: 'citizen'
+            password: 'password123'
         })
     });
     const data3 = await res3.json();
@@ -99,7 +99,6 @@ test('1. Unauthorized claim request should return 401', async () => {
 });
 
 test('2. Authenticated non-volunteer claim request should return 403', async () => {
-    // Create complaint
     const created = await Complaint.create({
         name: 'Reporter',
         phone: '1234567890',
@@ -148,7 +147,6 @@ test('3. Authorized volunteer claim should succeed', async () => {
 });
 
 test('4. Duplicate/conflicting claim should be rejected by backend', async () => {
-    // Volunteer 2 attempts to claim the same complaint already claimed by Volunteer 1
     const res = await fetch(`${baseUrl}/complaints/${testComplaint.id}/claim`, {
         method: 'POST',
         headers: {
@@ -162,7 +160,6 @@ test('4. Duplicate/conflicting claim should be rejected by backend', async () =>
 });
 
 test('5. Invalid complaint state for claim should return 409', async () => {
-    // Volunteer 1 attempts to claim again when status is already 'In Progress'
     const res = await fetch(`${baseUrl}/complaints/${testComplaint.id}/claim`, {
         method: 'POST',
         headers: {
@@ -205,7 +202,6 @@ test('8. Database persistence after resolution', async () => {
 });
 
 test('9. Invalid resolution state should return 400', async () => {
-    // Complaint is now 'Resolved', resolving it again should fail
     const res = await fetch(`${baseUrl}/complaints/${testComplaint.id}/resolve`, {
         method: 'POST',
         headers: {
@@ -219,7 +215,6 @@ test('9. Invalid resolution state should return 400', async () => {
 });
 
 test('10. Backend rejects manipulated client role', async () => {
-    // Citizen user attempts to claim with a body parameter saying role=volunteer
     const res = await fetch(`${baseUrl}/complaints/${testComplaint.id}/claim`, {
         method: 'POST',
         headers: {
@@ -234,17 +229,81 @@ test('10. Backend rejects manipulated client role', async () => {
 });
 
 test('11. Multiple users receive the same authoritative complaint state', async () => {
-    // Fetch complaint list as citizen
     const resCit = await fetch(`${baseUrl}/complaints`);
     const dataCit = await resCit.json();
     const citTarget = dataCit.data.find((c) => c.id === testComplaint.id);
     assert.strictEqual(citTarget.status, 'Resolved');
 
-    // Fetch complaint list as volunteer 2
     const resVol2 = await fetch(`${baseUrl}/complaints`, {
         headers: { 'Authorization': `Bearer ${volunteer2Token}` }
     });
     const dataVol2 = await resVol2.json();
     const vol2Target = dataVol2.data.find((c) => c.id === testComplaint.id);
     assert.strictEqual(vol2Target.status, 'Resolved');
+});
+
+test('12. Security Audit — Signup self-promotion to volunteer is rejected', async () => {
+    const attemptedEmail = `hacker_signup_${Date.now()}@example.com`;
+    const res = await fetch(`${baseUrl}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: 'Self Promoter',
+            email: attemptedEmail,
+            password: 'password123',
+            role: 'volunteer'
+        })
+    });
+    assert.strictEqual(res.status, 201);
+    const data = await res.json();
+    assert.strictEqual(data.data.user.role, 'citizen');
+
+    const dbUser = await User.findByEmail(attemptedEmail);
+    assert.strictEqual(dbUser.role, 'citizen');
+});
+
+test('13. Security Audit — Login self-promotion to volunteer is rejected', async () => {
+    const citizenEmail = `citizen_login_${Date.now()}@example.com`;
+    const resSignup = await fetch(`${baseUrl}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: 'Ordinary Citizen',
+            email: citizenEmail,
+            password: 'password123'
+        })
+    });
+    const signupData = await resSignup.json();
+    assert.strictEqual(signupData.data.user.role, 'citizen');
+
+    // Attempt login passing role: "volunteer"
+    const resLogin = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: citizenEmail,
+            password: 'password123',
+            role: 'volunteer'
+        })
+    });
+    assert.strictEqual(resLogin.status, 200);
+    const loginData = await resLogin.json();
+    const loginToken = loginData.data.token;
+
+    // Verify user role returned by login remains citizen
+    assert.strictEqual(loginData.data.user.role, 'citizen');
+
+    // Verify database row remains citizen
+    const dbUser = await User.findByEmail(citizenEmail);
+    assert.strictEqual(dbUser.role, 'citizen');
+
+    // Verify calling volunteer claim endpoint with this token returns 403 Forbidden
+    const claimRes = await fetch(`${baseUrl}/complaints/${testComplaint.id}/claim`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${loginToken}`
+        }
+    });
+    assert.strictEqual(claimRes.status, 403);
 });
