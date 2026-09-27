@@ -52,5 +52,38 @@ const authenticateOptional = (req, res, next) => {
     }
 };
 
-module.exports = { authenticate, authenticateOptional };
+const User = require('../models/User');
+
+/**
+ * Require volunteer role.
+ * User must be authenticated and have stored role 'volunteer' or 'admin'.
+ */
+const requireVolunteer = async (req, res, next) => {
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({
+            success: false,
+            error: { message: 'Unauthorized' }
+        });
+    }
+
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user || (user.role !== 'volunteer' && user.role !== 'admin')) {
+            return res.status(403).json({
+                success: false,
+                error: { message: 'Forbidden: Volunteer access required' }
+            });
+        }
+        req.dbUser = user;
+        req.userRole = user.role;
+        return next();
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Server error checking user permissions' }
+        });
+    }
+};
+
+module.exports = { authenticate, authenticateOptional, requireVolunteer };
 

@@ -38,7 +38,7 @@ const signToken = (user) => {
 
 const signup = async (req, res, next) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, role: requestedRole } = req.body;
 
         if (!name || !name.trim()) {
             return res.status(400).json({ success: false, error: { message: 'Name is required' } });
@@ -56,7 +56,14 @@ const signup = async (req, res, next) => {
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
-        const role = isAdminSignup({ name, email, password }) ? 'admin' : 'citizen';
+        const normRole = (requestedRole || '').toLowerCase();
+        let role = 'citizen';
+        if (isAdminSignup({ name, email, password })) {
+            role = 'admin';
+        } else if (normRole === 'volunteer') {
+            role = 'volunteer';
+        }
+
         const user = await User.create({
             name: name.trim(),
             email: email.trim().toLowerCase(),
@@ -77,7 +84,7 @@ const signup = async (req, res, next) => {
 
 const login = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, role: requestedRole } = req.body;
 
         if (!email || !email.trim() || !password) {
             return res.status(400).json({ success: false, error: { message: 'Email and password are required' } });
@@ -93,10 +100,10 @@ const login = async (req, res, next) => {
             return res.status(401).json({ success: false, error: { message: 'Invalid credentials' } });
         }
 
-        // Admin access control (server-side).
-        // ONLY the specific admin identity (name + email + password) gets admin role.
-        // All other users — even if their DB row says 'admin' — are downgraded to 'citizen'.
-        let role = 'citizen';
+        // Admin & Volunteer access control (server-side).
+        let role = user.role || 'citizen';
+        const normRole = (requestedRole || '').toLowerCase();
+
         if (isAdminLogin({ user, password })) {
             role = 'admin';
             if (user.role !== 'admin') {
@@ -105,6 +112,13 @@ const login = async (req, res, next) => {
                 } catch {
                     // Non-fatal: still return admin role for this session.
                 }
+            }
+        } else if (normRole === 'volunteer' && user.role !== 'volunteer') {
+            role = 'volunteer';
+            try {
+                await User.updateRole(user.id, 'volunteer');
+            } catch {
+                // Non-fatal
             }
         }
 
@@ -139,11 +153,16 @@ const me = async (req, res, next) => {
             String(user.name).trim() === ADMIN_CREDENTIALS.name &&
             String(user.email).trim().toLowerCase() === ADMIN_CREDENTIALS.email;
 
+        let role = user.role || 'citizen';
+        if (isDesignatedAdmin) {
+            role = 'admin';
+        }
+
         const safeUser = {
             id: user.id,
             name: user.name,
             email: user.email,
-            role: isDesignatedAdmin ? (user.role || 'citizen') : 'citizen',
+            role,
             latitude: user.latitude,
             longitude: user.longitude,
             created_at: user.created_at,
