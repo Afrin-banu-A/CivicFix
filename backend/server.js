@@ -7,6 +7,7 @@ const complaintRoutes = require('./src/routes/complaints');
 const authRoutes = require('./src/routes/auth');
 const commentRoutes = require('./src/routes/comments');
 const aiRoutes = require('./src/routes/ai');
+const volunteerRoutes = require('./src/routes/volunteers');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
@@ -57,6 +58,9 @@ app.use('/api/auth', authRoutes);
 
 // Comments routes
 app.use('/api/comments', commentRoutes);
+
+// Volunteer routes
+app.use('/api/volunteers', volunteerRoutes);
 
 
 // 2. POST /assign - Assign complaint to department

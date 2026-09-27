@@ -67,11 +67,24 @@ const initDatabase = async () => {
         );
     `;
 
+    const createVolunteerRequestsTableQuery = `
+        CREATE TABLE IF NOT EXISTS volunteer_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'pending',
+            reviewed_by INTEGER,
+            reviewed_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `;
+
     try {
         await pool.query(createTableQuery);
         await pool.query(createUsersTableQuery);
         await pool.query(createCommentsTableQuery);
         await pool.query(createComplaintJoinsTableQuery);
+        await pool.query(createVolunteerRequestsTableQuery);
 
         // If complaints table already existed before user_id was added, do a safe ALTER first.
         const columnsInfo = await pool.query("SELECT name FROM pragma_table_info('complaints')");
@@ -119,6 +132,8 @@ const initDatabase = async () => {
             'CREATE INDEX IF NOT EXISTS idx_comments_complaint_id ON comments(complaint_id)',
             'CREATE INDEX IF NOT EXISTS idx_joins_complaint_id ON complaint_joins(complaint_id)',
             'CREATE INDEX IF NOT EXISTS idx_joins_user_id ON complaint_joins(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_volunteer_requests_user_id ON volunteer_requests(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_volunteer_requests_status ON volunteer_requests(status)',
         ];
 
         for (const index of indices) {

@@ -85,5 +85,54 @@ const requireVolunteer = async (req, res, next) => {
     }
 };
 
-module.exports = { authenticate, authenticateOptional, requireVolunteer };
+/**
+ * Require admin role.
+ * User must be authenticated and have role 'admin' or match designated admin credentials.
+ */
+const requireAdmin = async (req, res, next) => {
+    if (!req.user || !req.user.id) {
+        return res.status(401).json({
+            success: false,
+            error: { message: 'Unauthorized' }
+        });
+    }
+
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(403).json({
+                success: false,
+                error: { message: 'Forbidden: Admin access required' }
+            });
+        }
+
+        const adminName = process.env.admin_name;
+        const adminEmail = process.env.admin_email;
+        const isDesignatedAdmin = Boolean(
+            adminEmail && adminName &&
+            String(user.name).trim() === adminName &&
+            String(user.email).trim().toLowerCase() === String(adminEmail).trim().toLowerCase()
+        );
+
+        const role = (user.role === 'admin' || isDesignatedAdmin) ? 'admin' : user.role;
+
+        if (role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: { message: 'Forbidden: Admin access required' }
+            });
+        }
+
+        req.dbUser = user;
+        req.userRole = 'admin';
+        return next();
+    } catch (err) {
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Server error checking user permissions' }
+        });
+    }
+};
+
+module.exports = { authenticate, authenticateOptional, requireVolunteer, requireAdmin };
 

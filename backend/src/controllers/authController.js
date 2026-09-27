@@ -5,26 +5,29 @@ const User = require('../models/User');
 
 const getJwtSecret = () => process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
 
-const ADMIN_CREDENTIALS = {
+const getAdminCredentials = () => ({
     name: process.env.admin_name,
     email: process.env.admin_email,
     password: process.env.admin_pass
-};
+});
 
 const isAdminSignup = ({ name, email, password }) => {
-    return (
-        String(name).trim() === ADMIN_CREDENTIALS.name &&
-        String(email).trim().toLowerCase() === ADMIN_CREDENTIALS.email &&
-        String(password) === ADMIN_CREDENTIALS.password
+    const admin = getAdminCredentials();
+    return Boolean(
+        admin.name && admin.email && admin.password &&
+        String(name).trim() === admin.name &&
+        String(email).trim().toLowerCase() === admin.email &&
+        String(password) === admin.password
     );
 };
 
 const isAdminLogin = ({ user, password }) => {
-    return (
-        user &&
-        String(user.name).trim() === ADMIN_CREDENTIALS.name &&
-        String(user.email).trim().toLowerCase() === ADMIN_CREDENTIALS.email &&
-        String(password) === ADMIN_CREDENTIALS.password
+    const admin = getAdminCredentials();
+    return Boolean(
+        user && admin.name && admin.email && admin.password &&
+        String(user.name).trim() === admin.name &&
+        String(user.email).trim().toLowerCase() === admin.email &&
+        String(password) === admin.password
     );
 };
 
@@ -135,9 +138,12 @@ const me = async (req, res, next) => {
         }
 
         // Enforce: only the designated admin email can have role 'admin' in responses.
-        const isDesignatedAdmin =
-            String(user.name).trim() === ADMIN_CREDENTIALS.name &&
-            String(user.email).trim().toLowerCase() === ADMIN_CREDENTIALS.email;
+        const admin = getAdminCredentials();
+        const isDesignatedAdmin = Boolean(
+            admin.name && admin.email &&
+            String(user.name).trim() === admin.name &&
+            String(user.email).trim().toLowerCase() === admin.email
+        );
 
         let role = user.role || 'citizen';
         if (isDesignatedAdmin) {
