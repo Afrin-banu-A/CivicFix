@@ -708,3 +708,93 @@ test('19. End-to-End Real World Volunteer Enrollment & Complaint Management Work
     assert.strictEqual(finalComplaintState.claimed_by_user_id, candidateUserId);
     assert.strictEqual(finalComplaintState.resolved_by_user_id, candidateUserId);
 });
+
+test('20. Duplicate Group Severity Calculation Tests (Issue #71)', async () => {
+    const ts = Date.now();
+    const tag = (str) => `${str}_${ts}`;
+
+    // 1. high + medium -> expected high
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G1'), city: 'City G1', issueType: 'Issue Type 1', description: 'Test', severity: 'high' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G1'), city: 'City G1', issueType: 'Issue Type 1', description: 'Test', severity: 'medium' });
+
+    // 2. medium + low -> expected medium
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G2'), city: 'City G2', issueType: 'Issue Type 2', description: 'Test', severity: 'medium' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G2'), city: 'City G2', issueType: 'Issue Type 2', description: 'Test', severity: 'low' });
+
+    // 3. high + low -> expected high
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G3'), city: 'City G3', issueType: 'Issue Type 3', description: 'Test', severity: 'high' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G3'), city: 'City G3', issueType: 'Issue Type 3', description: 'Test', severity: 'low' });
+
+    // 4. high + medium + low -> expected high
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G4'), city: 'City G4', issueType: 'Issue Type 4', description: 'Test', severity: 'high' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G4'), city: 'City G4', issueType: 'Issue Type 4', description: 'Test', severity: 'medium' });
+    await Complaint.create({ name: 'User 3', phone: '333', area: tag('Area G4'), city: 'City G4', issueType: 'Issue Type 4', description: 'Test', severity: 'low' });
+
+    // 5. only low -> expected low
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G5'), city: 'City G5', issueType: 'Issue Type 5', description: 'Test', severity: 'low' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G5'), city: 'City G5', issueType: 'Issue Type 5', description: 'Test', severity: 'low' });
+
+    // 6. only medium -> expected medium
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G6'), city: 'City G6', issueType: 'Issue Type 6', description: 'Test', severity: 'medium' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G6'), city: 'City G6', issueType: 'Issue Type 6', description: 'Test', severity: 'medium' });
+
+    // 7. only high -> expected high
+    await Complaint.create({ name: 'User 1', phone: '111', area: tag('Area G7'), city: 'City G7', issueType: 'Issue Type 7', description: 'Test', severity: 'high' });
+    await Complaint.create({ name: 'User 2', phone: '222', area: tag('Area G7'), city: 'City G7', issueType: 'Issue Type 7', description: 'Test', severity: 'high' });
+
+    // Regression test: Single report should not be returned in duplicate groups
+    await Complaint.create({ name: 'User Solo', phone: '999', area: tag('Area G8'), city: 'City G8', issueType: 'Issue Type Solo', description: 'Test', severity: 'high' });
+
+    // Fetch duplicate groups directly from Model
+    const modelGroups = await Complaint.getGroupedDuplicates();
+
+    const findGroup = (areaLabel) => modelGroups.find(g => g.area.toLowerCase() === tag(areaLabel).toLowerCase());
+
+    const group1 = findGroup('Area G1');
+    assert.ok(group1, 'Group 1 should exist');
+    assert.strictEqual(group1.highest_severity, 'high', 'high + medium should yield high');
+
+    const group2 = findGroup('Area G2');
+    assert.ok(group2, 'Group 2 should exist');
+    assert.strictEqual(group2.highest_severity, 'medium', 'medium + low should yield medium');
+
+    const group3 = findGroup('Area G3');
+    assert.ok(group3, 'Group 3 should exist');
+    assert.strictEqual(group3.highest_severity, 'high', 'high + low should yield high');
+
+    const group4 = findGroup('Area G4');
+    assert.ok(group4, 'Group 4 should exist');
+    assert.strictEqual(group4.highest_severity, 'high', 'high + medium + low should yield high');
+
+    const group5 = findGroup('Area G5');
+    assert.ok(group5, 'Group 5 should exist');
+    assert.strictEqual(group5.highest_severity, 'low', 'only low should yield low');
+
+    const group6 = findGroup('Area G6');
+    assert.ok(group6, 'Group 6 should exist');
+    assert.strictEqual(group6.highest_severity, 'medium', 'only medium should yield medium');
+
+    const group7 = findGroup('Area G7');
+    assert.ok(group7, 'Group 7 should exist');
+    assert.strictEqual(group7.highest_severity, 'high', 'only high should yield high');
+
+    const groupSolo = findGroup('Area G8');
+    assert.strictEqual(groupSolo, undefined, 'Single report should not form a duplicate group');
+
+    // Also test via API endpoint
+    const apiRes = await fetch(`${baseUrl}/complaints/grouped-duplicates`);
+    assert.strictEqual(apiRes.status, 200);
+    const apiBody = await apiRes.json();
+    assert.strictEqual(apiBody.success, true);
+    assert.ok(Array.isArray(apiBody.data));
+
+    const findApiGroup = (areaLabel) => apiBody.data.find(g => g.area.toLowerCase() === tag(areaLabel).toLowerCase());
+    assert.strictEqual(findApiGroup('Area G1').highest_severity, 'high');
+    assert.strictEqual(findApiGroup('Area G2').highest_severity, 'medium');
+    assert.strictEqual(findApiGroup('Area G3').highest_severity, 'high');
+    assert.strictEqual(findApiGroup('Area G4').highest_severity, 'high');
+    assert.strictEqual(findApiGroup('Area G5').highest_severity, 'low');
+    assert.strictEqual(findApiGroup('Area G6').highest_severity, 'medium');
+    assert.strictEqual(findApiGroup('Area G7').highest_severity, 'high');
+    assert.strictEqual(findApiGroup('Area G8'), undefined);
+});
