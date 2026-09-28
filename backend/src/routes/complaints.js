@@ -11,17 +11,25 @@ const {
     updateComplaintStatus,
     assignComplaint,
     joinComplaint,
-    getGroupedDuplicates
+    getGroupedDuplicates,
+    claimComplaint,
+    resolveComplaint
 } = require('../controllers/complaintController');
 
 const {
     validateComplaint,
     validateStatusUpdate,
     validateDepartmentAssignment
-  } = require('../middleware/validateComplaint');
-const upload = require('../middleware/uploadMiddleware');  validateDepartmentAssignment
+} = require('../middleware/validateComplaint');
 
-const { authenticate, authenticateOptional } = require('../middleware/auth');
+const upload = require('../middleware/uploadMiddleware');
+
+const {
+    authenticate,
+    authenticateOptional,
+    requireVolunteer
+} = require('../middleware/auth');
+
 const authorizeAdmin = require('../middleware/authorizeAdmin');
 
 // Routes match the architecture specification:
@@ -42,6 +50,12 @@ router.get('/nearby', getNearbyComplaints);
 // Admin: GET /complaints/grouped-duplicates - complaints grouped by area+type (count >= 2)
 router.get('/grouped-duplicates', getGroupedDuplicates);
 
+// Volunteer: POST /complaints/:id/claim - Claim complaint
+router.post('/:id/claim', authenticate, requireVolunteer, claimComplaint);
+
+// Volunteer: POST /complaints/:id/resolve - Resolve complaint
+router.post('/:id/resolve', authenticate, requireVolunteer, resolveComplaint);
+
 // 4. GET /complaints/:id - Fetch complaint details
 router.get('/:id', getComplaintById);
 
@@ -59,9 +73,9 @@ router.put(
 );
 
 // 7. POST /complaints/:id/join - Join existing complaint
-router.post('/:id/join', joinComplaint);
+router.post('/:id/join', authenticateOptional, joinComplaint);
 
-// 7. POST /assign - Assign complaint to department
+// 8. POST /assign - Assign complaint to department
 // (Note: This is mounted at /api/assign in server.js)
 router.post('/assign', validateDepartmentAssignment, assignComplaint);
 

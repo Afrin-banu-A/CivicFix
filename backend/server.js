@@ -7,9 +7,11 @@ const complaintRoutes = require('./src/routes/complaints');
 const authRoutes = require('./src/routes/auth');
 const commentRoutes = require('./src/routes/comments');
 const aiRoutes = require('./src/routes/ai');
+const volunteerRoutes = require('./src/routes/volunteers');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
+const { AI_MAX_BODY_SIZE } = require('./src/utils/aiLimits');
 
 // Ensure DB schema exists (idempotent)
 const initDatabase = require('./src/config/initDatabase');
@@ -23,6 +25,17 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
+
+// Apply a smaller body-size limit specifically to AI endpoints
+app.use('/api/ai', express.json({ limit: AI_MAX_BODY_SIZE }));
+
+app.use('/api/ai', express.urlencoded({
+    limit: AI_MAX_BODY_SIZE,
+    extended: true
+}));
+
+app.use('/api/ai', aiRoutes);
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static('uploads'));
@@ -46,8 +59,9 @@ app.use('/api/auth', authRoutes);
 // Comments routes
 app.use('/api/comments', commentRoutes);
 
-// AI routes
-app.use('/api/ai', aiRoutes);
+// Volunteer routes
+app.use('/api/volunteers', volunteerRoutes);
+
 
 // 2. POST /assign - Assign complaint to department
 // Mounted directly as per architecture spec
