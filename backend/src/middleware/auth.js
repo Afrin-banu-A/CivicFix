@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-
-const getJwtSecret = () => process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
+const { JWT_SECRET } = require('../config/jwt');
 
 /**
  * Require authentication.
@@ -18,7 +17,7 @@ const authenticate = (req, res, next) => {
     }
 
     try {
-        const payload = jwt.verify(token, getJwtSecret());
+        const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
         req.user = { id: payload.userId, email: payload.email };
         return next();
     } catch (err) {
@@ -43,7 +42,7 @@ const authenticateOptional = (req, res, next) => {
     }
 
     try {
-        const payload = jwt.verify(token, getJwtSecret());
+        const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
         req.user = { id: payload.userId, email: payload.email };
         return next();
     } catch (err) {

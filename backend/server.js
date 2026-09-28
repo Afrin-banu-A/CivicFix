@@ -2,6 +2,13 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+try {
+    require('./src/config/jwt');
+} catch (err) {
+    console.error(`FATAL BOOT ERROR: ${err.message}`);
+    process.exit(1);
+}
+
 // Import routes
 const complaintRoutes = require('./src/routes/complaints');
 const authRoutes = require('./src/routes/auth');
