@@ -24,6 +24,10 @@ const initDatabase = async () => {
             department TEXT DEFAULT 'General Administration',
             supporter_count INTEGER DEFAULT 1,
             user_id INTEGER,
+            claimed_by_user_id INTEGER,
+            claimed_by TEXT,
+            resolved_by_user_id INTEGER,
+            resolved_by TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -63,11 +67,24 @@ const initDatabase = async () => {
         );
     `;
 
+    const createVolunteerRequestsTableQuery = `
+        CREATE TABLE IF NOT EXISTS volunteer_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'pending',
+            reviewed_by INTEGER,
+            reviewed_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+    `;
+
     try {
         await pool.query(createTableQuery);
         await pool.query(createUsersTableQuery);
         await pool.query(createCommentsTableQuery);
         await pool.query(createComplaintJoinsTableQuery);
+        await pool.query(createVolunteerRequestsTableQuery);
 
         // If complaints table already existed before user_id was added, do a safe ALTER first.
         const columnsInfo = await pool.query("SELECT name FROM pragma_table_info('complaints')");
@@ -87,6 +104,22 @@ const initDatabase = async () => {
         if (!existingColumnNames.includes('want_updates')) {
             await pool.query('ALTER TABLE complaints ADD COLUMN want_updates TEXT DEFAULT "no"');
         }
+
+        if (!existingColumnNames.includes('claimed_by_user_id')) {
+            await pool.query('ALTER TABLE complaints ADD COLUMN claimed_by_user_id INTEGER');
+        }
+
+        if (!existingColumnNames.includes('claimed_by')) {
+            await pool.query('ALTER TABLE complaints ADD COLUMN claimed_by TEXT');
+        }
+
+        if (!existingColumnNames.includes('resolved_by_user_id')) {
+            await pool.query('ALTER TABLE complaints ADD COLUMN resolved_by_user_id INTEGER');
+        }
+
+        if (!existingColumnNames.includes('resolved_by')) {
+            await pool.query('ALTER TABLE complaints ADD COLUMN resolved_by TEXT');
+        }
         
         // SQLite doesn't support IF NOT EXISTS for CREATE INDEX before version 3.27
         // But better-sqlite3 handles common errors. We'll wrap individual index creations.
@@ -95,9 +128,12 @@ const initDatabase = async () => {
             'CREATE INDEX IF NOT EXISTS idx_complaints_department ON complaints(department)',
             'CREATE INDEX IF NOT EXISTS idx_complaints_complaint_id ON complaints(complaint_id)',
             'CREATE INDEX IF NOT EXISTS idx_complaints_user_id ON complaints(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_complaints_claimed_by_user_id ON complaints(claimed_by_user_id)',
             'CREATE INDEX IF NOT EXISTS idx_comments_complaint_id ON comments(complaint_id)',
             'CREATE INDEX IF NOT EXISTS idx_joins_complaint_id ON complaint_joins(complaint_id)',
             'CREATE INDEX IF NOT EXISTS idx_joins_user_id ON complaint_joins(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_volunteer_requests_user_id ON volunteer_requests(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_volunteer_requests_status ON volunteer_requests(status)',
         ];
 
         for (const index of indices) {

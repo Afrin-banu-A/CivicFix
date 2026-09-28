@@ -291,6 +291,64 @@ class Complaint {
         const result = await pool.query(query, [id]);
         return result.rowCount > 0;
     }
+
+    /**
+     * Claim a complaint (Volunteer)
+     * @param {number|string} id - Complaint internal ID or complaint_id
+     * @param {number} volunteerId - Authenticated volunteer user ID
+     * @param {string} volunteerName - Authenticated volunteer name
+     * @returns {Object|null} Updated complaint or null if not claimable / conflict
+     */
+    static async claim(id, volunteerId, volunteerName) {
+        let complaintId = id;
+        if (typeof id === 'string' && id.startsWith('CF-')) {
+            const existing = await this.findByComplaintId(id);
+            if (!existing) return null;
+            complaintId = existing.id;
+        }
+
+        const query = `
+            UPDATE complaints
+            SET status = 'In Progress',
+                claimed_by_user_id = $1,
+                claimed_by = $2,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $3 AND status = 'Pending' AND (claimed_by_user_id IS NULL OR claimed_by_user_id = $1)
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [volunteerId, volunteerName, complaintId]);
+        return result.rows[0] || null;
+    }
+
+    /**
+     * Resolve a complaint (Volunteer)
+     * @param {number|string} id - Complaint internal ID or complaint_id
+     * @param {number} volunteerId - Authenticated volunteer user ID
+     * @param {string} volunteerName - Authenticated volunteer name
+     * @returns {Object|null} Updated complaint or null if invalid transition
+     */
+    static async resolve(id, volunteerId, volunteerName) {
+        let complaintId = id;
+        if (typeof id === 'string' && id.startsWith('CF-')) {
+            const existing = await this.findByComplaintId(id);
+            if (!existing) return null;
+            complaintId = existing.id;
+        }
+
+        const query = `
+            UPDATE complaints
+            SET status = 'Resolved',
+                resolved_by_user_id = $1,
+                resolved_by = $2,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $3 AND status = 'In Progress' AND (claimed_by_user_id = $1 OR claimed_by_user_id IS NULL)
+            RETURNING *
+        `;
+
+        const result = await pool.query(query, [volunteerId, volunteerName, complaintId]);
+        return result.rows[0] || null;
+    }
 }
 
 module.exports = Complaint;
