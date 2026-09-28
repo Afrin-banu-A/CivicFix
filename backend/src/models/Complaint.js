@@ -268,7 +268,19 @@ class Complaint {
                 city,
                 COUNT(*) AS report_count,
                 SUM(supporter_count) AS total_supporters,
-                MAX(severity) AS highest_severity,
+                CASE MAX(
+                    CASE LOWER(COALESCE(severity, ''))
+                        WHEN 'high' THEN 3
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 1
+                        ELSE 0
+                    END
+                )
+                    WHEN 3 THEN 'high'
+                    WHEN 2 THEN 'medium'
+                    WHEN 1 THEN 'low'
+                    ELSE 'medium'
+                END AS highest_severity,
                 MIN(created_at) AS first_reported,
                 MAX(created_at) AS last_reported,
                 GROUP_CONCAT(complaint_id, ', ') AS complaint_ids
