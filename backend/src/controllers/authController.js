@@ -2,8 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const User = require('../models/User');
-
-const getJwtSecret = () => process.env.JWT_SECRET || 'dev_jwt_secret_change_me';
+const { JWT_SECRET } = require('../config/jwt');
 
 const getAdminCredentials = () => ({
     name: process.env.admin_name,
@@ -34,8 +33,8 @@ const isAdminLogin = ({ user, password }) => {
 const signToken = (user) => {
     return jwt.sign(
         { userId: user.id, email: user.email },
-        getJwtSecret(),
-        { expiresIn: '7d' }
+        JWT_SECRET,
+        { expiresIn: '7d', algorithm: 'HS256' }
     );
 };
 
