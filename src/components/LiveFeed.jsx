@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE, API_ORIGIN } from '../services/api';
+import { fetchLiveFeed } from '../utils/liveFeedLogic';
 import './LiveFeed.css';
 
 const formatDateTime = (value) => {
@@ -28,11 +29,12 @@ const LiveFeed = () => {
     const fetchFeed = async () => {
       setLoading(true);
       setError('');
+
       try {
-        const res = await fetch(`${API_BASE}/complaints`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'Failed to load feed');
-        setItems(data.data || []);
+        const data = await fetchLiveFeed(API_BASE);
+
+        setItems(data);
+        setLoading(false);
       } catch (err) {
         console.error('Backend fetchFeed error:', err);
         setError(err.message || 'Failed to load the live feed. Please try again.');
@@ -152,7 +154,9 @@ const LiveFeed = () => {
           </div>
         </div>
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && items.length > 0 && (
+          <div className="error-banner">{error}</div>
+        )}
 
         <div
           className="feed-viewport"
@@ -166,6 +170,10 @@ const LiveFeed = () => {
         >
           {loading ? (
             <div style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>Loading feed...</div>
+          ) : error && items.length === 0 ? (
+            <div className="error-banner">
+              {error}
+            </div>
           ) : items.length === 0 ? (
             <div style={{ color: 'var(--color-text-muted)', fontWeight: 700 }}>No complaints yet.</div>
           ) : (
