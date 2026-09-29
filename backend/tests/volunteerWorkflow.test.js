@@ -923,3 +923,167 @@ test('21. LiveFeed Comments API & Error Handling Tests', async () => {
     assert.strictEqual(getData.data[0].message, 'Valid test comment message');
     assert.notStrictEqual(getData.data[0].author_name, 'City Admin');
 });
+
+test('22. Issue #85: Complaint Field Type Validation Tests', async () => {
+    const getBasePayload = () => ({
+        name: 'Citizen Reporter',
+        phone: '9876543210',
+        area: 'Anna Nagar',
+        city: 'Chennai',
+        issueType: 'Pothole',
+        description: 'Large pothole on main road causing hazard'
+    });
+
+    // 1. name = number → 400
+    const res1 = await fetch(`${baseUrl}/complaints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...getBasePayload(), name: 42 })
+    });
+    assert.strictEqual(res1.status, 400);
+    const data1 = await res1.json();
+    assert.strictEqual(data1.success, false);
+    assert.strictEqual(data1.error.message, 'Validation failed');
+    assert.ok(data1.error.details.includes('Name is required'));
+
+    // 2. name = boolean → 400
+    const res2 = await fetch(`${baseUrl}/complaints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...getBasePayload(), name: true })
+    });
+    assert.strictEqual(res2.status, 400);
+    const data2 = await res2.json();
+    assert.strictEqual(data2.success, false);
+    assert.strictEqual(data2.error.message, 'Validation failed');
+    assert.ok(data2.error.details.includes('Name is required'));
+
+    // 3. name = object → 400
+    const res3 = await fetch(`${baseUrl}/complaints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...getBasePayload(), name: { first: 'John', last: 'Doe' } })
+    });
+    assert.strictEqual(res3.status, 400);
+    const data3 = await res3.json();
+    assert.strictEqual(data3.success, false);
+    assert.strictEqual(data3.error.message, 'Validation failed');
+    assert.ok(data3.error.details.includes('Name is required'));
+
+    // 4. phone = non-string → 400 (number, boolean, object, array)
+    const invalidPhones = [9876543210, false, { num: '9876543210' }, ['9876543210']];
+    for (const invalidPhone of invalidPhones) {
+        const res4 = await fetch(`${baseUrl}/complaints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...getBasePayload(), phone: invalidPhone })
+        });
+        assert.strictEqual(res4.status, 400);
+        const data4 = await res4.json();
+        assert.strictEqual(data4.success, false);
+        assert.strictEqual(data4.error.message, 'Validation failed');
+        assert.ok(data4.error.details.includes('Phone is required'));
+    }
+
+    // 5. area = non-string → 400 (number, boolean, object)
+    const invalidAreas = [123, true, { area: 'Anna Nagar' }, ['Area']];
+    for (const invalidArea of invalidAreas) {
+        const res5 = await fetch(`${baseUrl}/complaints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...getBasePayload(), area: invalidArea })
+        });
+        assert.strictEqual(res5.status, 400);
+        const data5 = await res5.json();
+        assert.strictEqual(data5.success, false);
+        assert.strictEqual(data5.error.message, 'Validation failed');
+        assert.ok(data5.error.details.includes('Area is required'));
+    }
+
+    // 6. city = non-string → 400 (number, boolean, object)
+    const invalidCities = [456, false, { city: 'Chennai' }, ['City']];
+    for (const invalidCity of invalidCities) {
+        const res6 = await fetch(`${baseUrl}/complaints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...getBasePayload(), city: invalidCity })
+        });
+        assert.strictEqual(res6.status, 400);
+        const data6 = await res6.json();
+        assert.strictEqual(data6.success, false);
+        assert.strictEqual(data6.error.message, 'Validation failed');
+        assert.ok(data6.error.details.includes('City is required'));
+    }
+
+    // 7. issueType = non-string → 400 (number, boolean, object)
+    const invalidIssueTypes = [789, true, { issue: 'Pothole' }, ['Issue']];
+    for (const invalidIssue of invalidIssueTypes) {
+        const res7 = await fetch(`${baseUrl}/complaints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...getBasePayload(), issueType: invalidIssue })
+        });
+        assert.strictEqual(res7.status, 400);
+        const data7 = await res7.json();
+        assert.strictEqual(data7.success, false);
+        assert.strictEqual(data7.error.message, 'Validation failed');
+        assert.ok(data7.error.details.includes('Issue type is required'));
+    }
+
+    // 8. description = non-string → 400 (number, boolean, object)
+    const invalidDescriptions = [101, false, { text: 'Some description' }, ['Desc']];
+    for (const invalidDesc of invalidDescriptions) {
+        const res8 = await fetch(`${baseUrl}/complaints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...getBasePayload(), description: invalidDesc })
+        });
+        assert.strictEqual(res8.status, 400);
+        const data8 = await res8.json();
+        assert.strictEqual(data8.success, false);
+        assert.strictEqual(data8.error.message, 'Validation failed');
+        assert.ok(data8.error.details.includes('Description is required'));
+    }
+
+    // 9. missing required field → existing 400 behavior
+    const requiredChecks = [
+        { field: 'name', expectedError: 'Name is required' },
+        { field: 'phone', expectedError: 'Phone is required' },
+        { field: 'area', expectedError: 'Area is required' },
+        { field: 'city', expectedError: 'City is required' },
+        { field: 'issueType', expectedError: 'Issue type is required' },
+        { field: 'description', expectedError: 'Description is required' }
+    ];
+    for (const { field, expectedError } of requiredChecks) {
+        const payload = getBasePayload();
+        delete payload[field];
+        const res9 = await fetch(`${baseUrl}/complaints`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        assert.strictEqual(res9.status, 400);
+        const data9 = await res9.json();
+        assert.strictEqual(data9.success, false);
+        assert.strictEqual(data9.error.message, 'Validation failed');
+        assert.ok(data9.error.details.includes(expectedError));
+    }
+
+    // 10. valid complaint → existing success behavior
+    const validPayload = getBasePayload();
+    const res10 = await fetch(`${baseUrl}/complaints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload)
+    });
+    assert.strictEqual(res10.status, 201);
+    const data10 = await res10.json();
+    assert.strictEqual(data10.success, true);
+    assert.ok(data10.data.complaintId);
+    assert.strictEqual(data10.data.name, validPayload.name);
+    assert.strictEqual(data10.data.phone, validPayload.phone);
+    assert.strictEqual(data10.data.area, validPayload.area);
+    assert.strictEqual(data10.data.city, validPayload.city);
+    assert.strictEqual(data10.data.issueType, validPayload.issueType);
+    assert.strictEqual(data10.data.description, validPayload.description);
+});
