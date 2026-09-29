@@ -21,8 +21,16 @@ const {
     validateStatusUpdate,
     validateDepartmentAssignment
 } = require('../middleware/validateComplaint');
+
 const upload = require('../middleware/uploadMiddleware');
-const { authenticate, authenticateOptional, requireVolunteer } = require('../middleware/auth');
+
+const {
+    authenticate,
+    authenticateOptional,
+    requireVolunteer
+} = require('../middleware/auth');
+
+const authorizeAdmin = require('../middleware/authorizeAdmin');
 
 // Routes match the architecture specification:
 
@@ -55,12 +63,19 @@ router.get('/:id', getComplaintById);
 router.get('/', getAllComplaints);
 
 // 6. PUT /complaints/:id - Update status (Pending → In Progress → Resolved)
-router.put('/:id', validateStatusUpdate, updateComplaintStatus);
+// Requires authentication and admin authorization.
+router.put(
+    '/:id',
+    authenticate,
+    authorizeAdmin,
+    validateStatusUpdate,
+    updateComplaintStatus
+);
 
 // 7. POST /complaints/:id/join - Join existing complaint
 router.post('/:id/join', authenticateOptional, joinComplaint);
 
-// 7. POST /assign - Assign complaint to department
+// 8. POST /assign - Assign complaint to department
 // (Note: This is mounted at /api/assign in server.js)
 router.post('/assign', validateDepartmentAssignment, assignComplaint);
 

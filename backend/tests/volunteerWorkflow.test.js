@@ -385,6 +385,83 @@ test('13. Security Audit — Login self-promotion to volunteer is rejected', asy
     assert.strictEqual(claimRes.status, 403);
 });
 
+// ISSUE #49: Complaint status update authorization
+
+test('Issue #49. Unauthenticated status update should return 401', async () => {
+    const complaint = await Complaint.create({
+        name: 'Status Test User',
+        phone: '1234567890',
+        area: 'Test Area',
+        city: 'Test City',
+        issueType: 'Road',
+        description: 'Issue #49 unauthenticated status test',
+        severity: 'medium'
+    });
+
+    const res = await fetch(`${baseUrl}/complaints/${complaint.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'In Progress' })
+    });
+
+    assert.strictEqual(res.status, 401);
+});
+
+test('Issue #49. Non-admin status update should return 403', async () => {
+    const complaint = await Complaint.create({
+        name: 'Status Test User',
+        phone: '1234567890',
+        area: 'Test Area',
+        city: 'Test City',
+        issueType: 'Road',
+        description: 'Issue #49 non-admin status test',
+        severity: 'medium'
+    });
+
+    const res = await fetch(`${baseUrl}/complaints/${complaint.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${citizenToken}`
+        },
+        body: JSON.stringify({ status: 'In Progress' })
+    });
+
+    assert.strictEqual(res.status, 403);
+});
+
+test('Issue #49. Admin can update complaint status and change is persisted', async () => {
+    const complaint = await Complaint.create({
+        name: 'Status Test User',
+        phone: '1234567890',
+        area: 'Test Area',
+        city: 'Test City',
+        issueType: 'Road',
+        description: 'Issue #49 admin status test',
+        severity: 'medium'
+    });
+
+    const res = await fetch(`${baseUrl}/complaints/${complaint.id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+        },
+        body: JSON.stringify({ status: 'In Progress' })
+    });
+
+    assert.strictEqual(res.status, 200);
+
+    const data = await res.json();
+    assert.strictEqual(data.success, true);
+    assert.strictEqual(data.data.status, 'In Progress');
+
+    const freshComplaint = await Complaint.findById(complaint.id);
+    assert.strictEqual(freshComplaint.status, 'In Progress');
+});
+
 // NEW TESTS: VOLUNTEER ENROLLMENT & APPROVAL WORKFLOW
 
 test('14. Volunteer Enrollment — Unauthenticated request is rejected (401)', async () => {
