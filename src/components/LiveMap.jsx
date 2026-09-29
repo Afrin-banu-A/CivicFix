@@ -2,6 +2,10 @@ import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from "react-leaf
 import "leaflet/dist/leaflet.css";
 import { API_BASE } from "../services/api";
 import { useEffect, useState, useCallback } from "react";
+import {
+    fetchMapReports,
+    MapStatusNotice,
+} from "../utils/liveMapLogic";
 
 const getColor = (severity) => {
     const s = String(severity || "").toLowerCase();
@@ -31,55 +35,6 @@ const RecenterMap = ({ coords }) => {
     return null;
 };
 
-// Identify legacy mock/dummy reports to prevent them from persisting or rendering
-const isDummyReport = (r) => {
-    if (!r) return false;
-    const id = String(r.id || "");
-    const complaintId = String(r.complaint_id || "");
-    return (
-        id.startsWith("mock-") ||
-        complaintId.startsWith("CMP-M") ||
-        (r.place === "Chennai Central" && r.issueType === "Broken Road" && r.department === "Roads Department") ||
-        (r.place === "T Nagar" && r.issueType === "Garbage Overflow" && r.department === "Sanitation") ||
-        (r.place === "Adyar" && r.issueType === "Streetlight Out" && r.department === "Electrical")
-    );
-};
-
-// Pure function to merge and normalize legitimate reports from API and localStorage
-const processReports = (apiReports = [], localReports = []) => {
-    const validLocalReports = (Array.isArray(localReports) ? localReports : []).filter(
-        (r) => !isDummyReport(r)
-    );
-    const validApiReports = (Array.isArray(apiReports) ? apiReports : []).filter(
-        (r) => !isDummyReport(r)
-    );
-
-    // Merge them, avoiding duplicates by complaint ID
-    const merged = [...validApiReports];
-    const apiIds = new Set(validApiReports.map((r) => r.complaint_id || r.id));
-
-    validLocalReports.forEach((r) => {
-        const id = r.complaint_id || r.id;
-        if (id && !apiIds.has(id)) {
-            merged.push(r);
-        }
-    });
-
-    // Normalize lat/lng property names
-    return merged
-        .map((r) => ({
-            ...r,
-            lat: r.latitude || r.lat,
-            lng: r.longitude || r.lng,
-            issueType: r.issue_type || r.issueType || "Unknown",
-            place: r.area ? `${r.area}, ${r.city}` : (r.place || "Unknown"),
-            severity: r.severity || "Low",
-            status: r.status || "Pending",
-            date: r.created_at ? new Date(r.created_at).toLocaleDateString() : (r.date || "Today"),
-        }))
-        .filter((r) => r.lat && r.lng);
-};
-
 const LiveMap = () => {
     const [reports, setReports] = useState([]);
     const [userLocation, setUserLocation] = useState(null);
@@ -94,59 +49,22 @@ const LiveMap = () => {
 
     // Load reports from both API (backend) and localStorage (immediate local)
     const loadReports = useCallback(async () => {
-        let apiReports = [];
+        setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/complaints`);
-            const data = await res.json();
-            if (res.ok) {
-                apiReports = data.data || [];
-                setApiError(null);
-            } else {
-                setApiError(data.error?.message || "Failed to fetch reports from API");
-            }
+            const { apiError: err, reports: loadedReports } = await fetchMapReports({
+                apiBase: API_BASE,
+                fetchFn: window.fetch.bind(window),
+                storage: window.localStorage,
+            });
+            setApiError(err);
+            setReports(loadedReports);
         } catch (err) {
-            console.error("Failed to fetch reports from API:", err);
-            setApiError("Unable to connect to server");
+            console.error("Failed to load map reports:", err);
+            setApiError("Failed to load complaints. Please try again.");
+            setReports([]);
         } finally {
             setLoading(false);
         }
-
-        let localReports = [];
-        try {
-            const stored = JSON.parse(localStorage.getItem("reports") || "[]");
-            if (Array.isArray(stored)) {
-                localReports = stored;
-            }
-        } catch (err) {
-            console.error("Failed to parse reports from localStorage:", err);
-        }
-
-        // Clean up any legacy dummy fixture data persisted in localStorage from previous visits
-        try {
-            const storedReports = JSON.parse(localStorage.getItem("reports") || "[]");
-            if (Array.isArray(storedReports) && storedReports.some(isDummyReport)) {
-                const cleanedReports = storedReports.filter((r) => !isDummyReport(r));
-                if (cleanedReports.length > 0) {
-                    localStorage.setItem("reports", JSON.stringify(cleanedReports));
-                } else {
-                    localStorage.removeItem("reports");
-                }
-            }
-            const storedIssues = JSON.parse(localStorage.getItem("civicfix_issues") || "[]");
-            if (Array.isArray(storedIssues) && storedIssues.some(isDummyReport)) {
-                const cleanedIssues = storedIssues.filter((r) => !isDummyReport(r));
-                if (cleanedIssues.length > 0) {
-                    localStorage.setItem("civicfix_issues", JSON.stringify(cleanedIssues));
-                } else {
-                    localStorage.removeItem("civicfix_issues");
-                }
-            }
-        } catch {
-            // Ignore parse errors
-        }
-
-        const normalized = processReports(apiReports, localReports);
-        setReports(normalized);
     }, []);
 
     useEffect(() => {
@@ -355,56 +273,12 @@ const LiveMap = () => {
             </div>
 
             {/* Loading / Empty / Error state notice */}
-            {loading ? (
-                <div
-                    data-testid="map-loading-state"
-                    style={{
-                        textAlign: "center",
-                        padding: "8px 16px",
-                        marginBottom: "10px",
-                        color: "#666",
-                        fontSize: "14px",
-                        fontStyle: "italic"
-                    }}
-                >
-                    ⏳ Loading complaints...
-                </div>
-            ) : reports.length === 0 ? (
-                <div
-                    data-testid="map-empty-state"
-                    style={{
-                        textAlign: "center",
-                        padding: "10px 16px",
-                        marginBottom: "10px",
-                        backgroundColor: "#f8f9fa",
-                        borderRadius: "8px",
-                        border: "1px dashed #ced4da",
-                        color: "#555",
-                        fontSize: "14px",
-                        fontWeight: "500"
-                    }}
-                >
-                    ℹ️ No complaints reported yet. The map is currently clear.
-                </div>
-            ) : null}
-
-            {apiError && !loading && (
-                <div
-                    data-testid="map-error-state"
-                    style={{
-                        textAlign: "center",
-                        padding: "6px 12px",
-                        marginBottom: "10px",
-                        backgroundColor: "#fff3cd",
-                        borderRadius: "6px",
-                        border: "1px solid #ffeeba",
-                        color: "#856404",
-                        fontSize: "12px"
-                    }}
-                >
-                    ⚠️ {apiError}
-                </div>
-            )}
+            <MapStatusNotice
+                loading={loading}
+                apiError={apiError}
+                reportsCount={reports.length}
+                onRetry={loadReports}
+            />
 
             <MapContainer
                 center={[activeCenter.lat, activeCenter.lng]}
