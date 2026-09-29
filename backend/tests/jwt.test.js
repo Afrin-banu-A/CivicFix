@@ -6,11 +6,11 @@ describe('JWT Config Security Tests', () => {
     const loadConfig = (secretValue) => {
         // Backup process.env
         const backupEnv = { ...process.env };
-        
+
         // Remove from cache if loaded
         const configPath = require.resolve('../src/config/jwt');
         delete require.cache[configPath];
-        
+
         try {
             if (secretValue === undefined) {
                 delete process.env.JWT_SECRET;
