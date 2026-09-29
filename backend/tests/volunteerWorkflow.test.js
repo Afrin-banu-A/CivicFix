@@ -875,3 +875,51 @@ test('20. Duplicate Group Severity Calculation Tests (Issue #71)', async () => {
     assert.strictEqual(findApiGroup('Area G7').highest_severity, 'high');
     assert.strictEqual(findApiGroup('Area G8'), undefined);
 });
+
+test('21. LiveFeed Comments API & Error Handling Tests', async () => {
+    const testComplaintId = `CMP-TEST-${Date.now()}`;
+
+    // 1. GET comments for complaint with no comments -> returns empty list without fake admin comment
+    const emptyRes = await fetch(`${baseUrl}/comments/${testComplaintId}`);
+    assert.strictEqual(emptyRes.status, 200);
+    const emptyData = await emptyRes.json();
+    assert.strictEqual(emptyData.success, true);
+    assert.strictEqual(emptyData.count, 0);
+    assert.deepStrictEqual(emptyData.data, []);
+
+    // 2. POST comment with invalid data (missing message) -> returns 400 status failure
+    const invalidPostRes = await fetch(`${baseUrl}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complaintId: testComplaintId, message: '   ' })
+    });
+    assert.strictEqual(invalidPostRes.status, 400);
+    const invalidPostData = await invalidPostRes.json();
+    assert.strictEqual(invalidPostData.success, false);
+    assert.ok(invalidPostData.error?.message);
+
+    // 3. POST comment with valid data -> creates and returns comment
+    const validPostRes = await fetch(`${baseUrl}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            complaintId: testComplaintId,
+            name: 'Test Citizen',
+            message: 'Valid test comment message'
+        })
+    });
+    assert.strictEqual(validPostRes.status, 201);
+    const validPostData = await validPostRes.json();
+    assert.strictEqual(validPostData.success, true);
+    assert.strictEqual(validPostData.data.author_name, 'Test Citizen');
+    assert.strictEqual(validPostData.data.message, 'Valid test comment message');
+
+    // 4. GET comments now returns only the posted comment, no manufacture of admin replies
+    const getRes = await fetch(`${baseUrl}/comments/${testComplaintId}`);
+    assert.strictEqual(getRes.status, 200);
+    const getData = await getRes.json();
+    assert.strictEqual(getData.success, true);
+    assert.strictEqual(getData.count, 1);
+    assert.strictEqual(getData.data[0].message, 'Valid test comment message');
+    assert.notStrictEqual(getData.data[0].author_name, 'City Admin');
+});
