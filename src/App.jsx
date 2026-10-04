@@ -18,7 +18,7 @@ import MyComplaints from './components/MyComplaints';
 import NearbyComplaints from './components/NearbyComplaints';
 import ProtectedRoute from './components/ProtectedRoute';
 import LiveFeed from './components/LiveFeed';
-import VolunteerDashboard from './components/volunteerdashboard';
+import VolunteerDashboard from './components/VolunteerDashboard';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import LiveChatbot from './components/LiveChatbot';
 
