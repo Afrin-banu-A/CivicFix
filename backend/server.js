@@ -7,6 +7,7 @@ const complaintRoutes = require('./src/routes/complaints');
 const authRoutes = require('./src/routes/auth');
 const commentRoutes = require('./src/routes/comments');
 const aiRoutes = require('./src/routes/ai');
+const path = require('path');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./src/middleware/errorHandler');
@@ -25,7 +26,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', (req, res, next) => {
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+    const extension = path.extname(req.path).toLowerCase();
+
+    if (!allowedExtensions.includes(extension)) {
+        return res.status(404).end();
+    }
+
+    next();
+}, express.static('uploads'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

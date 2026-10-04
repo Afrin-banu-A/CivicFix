@@ -18,10 +18,18 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        // Create a unique filename with original extension
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+
+    const mimeTypeToExtension = {
+        'image/jpeg': '.jpg',
+        'image/png': '.png',
+        'image/webp': '.webp'
+    };
+
+    const extension = mimeTypeToExtension[file.mimetype];
+
+    cb(null, file.fieldname + '-' + uniqueSuffix + extension);
+  }
 });
 // Create multer instance with file size and MIME type limits
 const allowedMimeTypes = new Set([
@@ -54,8 +62,9 @@ const uploadSingle = (fieldName) => {
     return (req, res, next) => {
         multerMiddleware(req, res, (err) => {
             if (err) {
-                return next(err);
-            }
+    err.statusCode = 400;
+    return next(err);
+	    }
 
             if (!req.file) {
                 return next();
