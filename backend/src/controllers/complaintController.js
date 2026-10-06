@@ -346,6 +346,13 @@ const claimComplaint = async (req, res, next) => {
             });
         }
 
+        if (complaint.allow_volunteers === 'no') {
+            return res.status(403).json({
+                success: false,
+                error: { message: 'This complaint does not allow volunteer claims' }
+            });
+        }
+
         const sev = (complaint.severity || '').toLowerCase();
         const supporterCount = complaint.supporter_count || 1;
         if (sev === 'high' && supporterCount >= 10) {
