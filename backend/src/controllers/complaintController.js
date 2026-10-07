@@ -2,6 +2,7 @@ const Complaint = require('../models/Complaint');
 const User = require('../models/User');
 const { routeToDepartment } = require('../utils/departmentRouter');
 const { generateWhatsAppLink } = require('../utils/whatsapp');
+const { removeUploadedFile } = require('../middleware/uploadMiddleware');
 
 /**
  * Create a new complaint
@@ -47,6 +48,8 @@ const createComplaint = async (req, res, next) => {
             }
         });
     } catch (err) {
+        removeUploadedFile(req.file);
+        req.file = undefined;
         next(err);
     }
 };
