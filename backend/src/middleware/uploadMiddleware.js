@@ -42,6 +42,12 @@ const isAllowedMimeType = (mimeType) => {
     return allowedMimeTypes.has(mimeType);
 };
 
+const removeUploadedFile = (file) => {
+    if (file?.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+    }
+};
+
 const upload = multer({
     storage: storage,
     limits: {
@@ -78,7 +84,7 @@ const uploadSingle = (fieldName) => {
                 );
 
                 if (!isValid) {
-                    fs.unlinkSync(req.file.path);
+                    removeUploadedFile(req.file);
                     req.file = undefined;
 
                     const error = new Error(
@@ -91,9 +97,7 @@ const uploadSingle = (fieldName) => {
 
                 return next();
             } catch (error) {
-                if (req.file?.path && fs.existsSync(req.file.path)) {
-                    fs.unlinkSync(req.file.path);
-                }
+                removeUploadedFile(req.file);
 
                 req.file = undefined;
                 return next(error);
@@ -104,5 +108,6 @@ const uploadSingle = (fieldName) => {
 
 module.exports = {
     single: uploadSingle,
-    isAllowedMimeType
+    isAllowedMimeType,
+    removeUploadedFile
 };
