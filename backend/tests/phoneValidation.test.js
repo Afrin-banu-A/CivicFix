@@ -71,3 +71,15 @@ test('accepts formatted phone numbers with at least 10 digits', () => {
 
     assert.strictEqual(nextCalled, true);
 });
+test('rejects phone numbers containing letters', () => {
+    const req = createRequest('abc1234567890');
+    const res = createResponse();
+    let nextCalled = false;
+
+    validateComplaint(req, res, () => {
+        nextCalled = true;
+    });
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(nextCalled, false);
+});
