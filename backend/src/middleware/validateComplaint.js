@@ -1,5 +1,6 @@
 /* global module */
 const { removeUploadedFile } = require('./uploadMiddleware');
+const VALID_SEVERITIES = new Set(['low', 'medium', 'high']);
 
 /**
  * Validate complaint creation data
@@ -15,6 +16,20 @@ const validateComplaint = (req, res, next) => {
     } = req.body || {};
 
     const errors = [];
+
+    // Missing severity keeps the model's existing default of "medium".
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'severity')) {
+        if (typeof req.body.severity !== 'string') {
+            errors.push('Severity must be one of: low, medium, high');
+        } else {
+            const normalizedSeverity = req.body.severity.trim().toLowerCase();
+            if (!VALID_SEVERITIES.has(normalizedSeverity)) {
+                errors.push('Severity must be one of: low, medium, high');
+            } else {
+                req.body.severity = normalizedSeverity;
+            }
+        }
+    }
 
     // Required fields
     if (typeof name !== 'string' || name.trim() === '') {

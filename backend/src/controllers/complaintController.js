@@ -356,7 +356,9 @@ const claimComplaint = async (req, res, next) => {
             });
         }
 
-        const sev = (complaint.severity || '').toLowerCase();
+        const sev = typeof complaint.severity === 'string'
+            ? complaint.severity.trim().toLowerCase()
+            : '';
         const supporterCount = complaint.supporter_count || 1;
         if (sev === 'high' && supporterCount >= 10) {
             return res.status(400).json({
